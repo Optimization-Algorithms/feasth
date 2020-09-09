@@ -100,7 +100,7 @@ fn convert_status(data: (usize, Option<usize>)) -> Option<(usize, usize)> {
 }
 
 fn parse_csv_line(line: &str) -> Option<Result<(usize, Option<usize>), ParseError>> {
-    let tokens: Vec<&str> = line.split(',').collect();
+    let tokens: Vec<&str> = line.split(',').map(|s| s.trim()).collect();
     if tokens.len() == 3 {
         Some(convert_csv_line(&tokens))
     } else {
@@ -109,13 +109,18 @@ fn parse_csv_line(line: &str) -> Option<Result<(usize, Option<usize>), ParseErro
 }
 
 fn convert_csv_line(tokens: &[&str]) -> Result<(usize, Option<usize>), ParseError> {
-    let count = tokens[1].parse()?;
+    let count = convert_token(tokens[1])?;
     let status = if tokens[2].len() > 0 {
-        Some(tokens[2].parse()?)
+        Some(convert_token(tokens[2])?)
     } else {
         None
     };
     Ok((count, status))
+}
+
+fn convert_token(token: &str) -> Result<usize, ParseError> {
+    let n = token.parse()?;
+    Ok(n)
 }
 
 #[cfg(test)]
