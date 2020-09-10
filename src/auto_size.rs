@@ -3,6 +3,7 @@ use reqwest;
 
 use crate::error;
 
+use std::io::{Error, ErrorKind};
 use std::path::Path;
 
 const DEF_TAIL: &str = "-init.csv";
@@ -29,11 +30,16 @@ fn derive_model_name(name: &str) -> Option<&str> {
     }
 }
 
-fn get_path_name(log_name: &Path) -> Result<&str, error::PathConversionError> {
-    if let Some(name) = log_name.to_str() {
-        Ok(name)
+fn get_path_name(log_name: &Path) -> Result<&str, Box<dyn std::error::Error>> {
+    if let Some(log_name) = log_name.file_name() {
+        if let Some(name) = log_name.to_str() {
+            Ok(name)
+        } else {
+            Err(error::PathConversionError{})?
+        }
     } else {
-        Err(error::PathConversionError{})
+        let err = Error::new(ErrorKind::InvalidData, format!("cannot get file name from path {:?}", log_name));
+        Err(err)?
     }
 }
 
