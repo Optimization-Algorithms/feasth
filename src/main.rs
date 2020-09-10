@@ -2,11 +2,13 @@ mod error;
 mod file_utils;
 mod log_parser;
 mod mps_parser;
+mod auto_size;
 
 use std::io::{Write, stdout};
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use structopt::{StructOpt, clap::ArgGroup};
+use tokio;
 
 #[derive(Debug, StructOpt)]
 #[structopt(group = ArgGroup::with_name("file").required(true))]
@@ -14,8 +16,9 @@ struct ModelSize {
     #[structopt(help="Specify model size directly", name="Model size", short="s", long="size", group = "file")]
     size: Option<usize>,
     #[structopt(help="Specify MPS file and compute model size automatically", short="i", name="Model File", long="instance", group = "file")]
-    file: Option<PathBuf>
-
+    file: Option<PathBuf>,
+    #[structopt(help="Derive Instance name from log file and search model size on Miplib", short="a", long="auto", group = "file")]
+    auto: bool
 }
 
 #[derive(Debug, StructOpt)]
@@ -72,26 +75,29 @@ fn print_index(name: &str, value: Option<f64>, output: &mut dyn Write) -> Result
     Ok(())
 }
 
-fn variable_count(mps_file: &ModelSize) -> Result<usize, error::ParseError> {
+async fn variable_count(name: &Path, mps_file: &ModelSize) -> Result<usize, error::ParseError> {
     if let Some(count) = mps_file.size {
         Ok(count)
     } else if let Some(ref file) = mps_file.file {
         mps_parser::get_variable_count(file)
-    } else {
+    } else if mps_file.auto {
+        let size = auto_size::search_model_size(name).await?;
+        Ok(size)
+    }else {
         unreachable!()
     }
 }
 
-fn compute_usage_ratio(args: Arguments) -> Result<Vec<(f64, Option<usize>)>, error::ParseError> {
-    let count = variable_count(&args.mps_file)? as f64;
+async fn compute_usage_ratio(args: Arguments) -> Result<Vec<(f64, Option<usize>)>, error::ParseError> {
+    let count = variable_count(&args.log_file, &args.mps_file).await? as f64;
     let vect = log_parser::get_model_sizes(&args.log_file)?;
     let output = vect.iter().map(|(curr, status)| ((*curr as f64) / count, *status)).collect();
     Ok(output)
 }
 
 
-fn run_file_parse(args: Arguments) -> Result<(usize, log_parser::TotalSize), error::ParseError> {
-    let count = variable_count(&args.mps_file)?;
+async fn run_file_parse(args: Arguments) -> Result<(usize, log_parser::TotalSize), error::ParseError> {
+    let count = variable_count(&args.log_file, &args.mps_file).await?;
     let tot_size = log_parser::get_average_sizes(&args.log_file)?;
     Ok((count, tot_size))
 }
@@ -118,9 +124,9 @@ fn warn_size(cft: &Option<f64>, ift: &Option<f64>) {
     }
 }
 
-fn run_threshold(args: Arguments) -> Result<(), error::ParseError> {
+async fn run_threshold(args: Arguments) -> Result<(), error::ParseError> {
     let mut output = get_output(&args)?;
-    let (count, tot_size) = run_file_parse(args)?;
+    let (count, tot_size) = run_file_parse(args).await?;
     writeln!(&mut output, "Model Size: {}", count)?;
 
     let continuous_threshold = get_ratio(tot_size.continuous, count);
@@ -135,10 +141,10 @@ fn run_threshold(args: Arguments) -> Result<(), error::ParseError> {
 }
 
 
-fn run_usage(args: Arguments) -> Result<(), error::ParseError> {
+async fn run_usage(args: Arguments) -> Result<(), error::ParseError> {
 
     let mut output = get_output(&args)?;
-    let usage_ratio = compute_usage_ratio(args)?;
+    let usage_ratio = compute_usage_ratio(args).await?;
     for (ratio, status) in usage_ratio {
         if let Some(stat) = status {
             writeln!(&mut output, "{},{}", ratio, stat)?;
@@ -150,16 +156,17 @@ fn run_usage(args: Arguments) -> Result<(), error::ParseError> {
     Ok(())
 }
 
-fn run() -> Result<(), error::ParseError> {
+async fn run() -> Result<(), error::ParseError> {
     let args = Action::from_args();
     match args {
-        Action::FeasThreshold(arg) => run_threshold(arg),
-        Action::UsageRatio(arg) => run_usage(arg)
+        Action::FeasThreshold(arg) => run_threshold(arg).await,
+        Action::UsageRatio(arg) => run_usage(arg).await
     }
 }
 
-fn main() {
-    match run() {
+#[tokio::main]
+async fn main() {
+    match run().await {
         Ok(()) => {}
         Err(err) => println!("{}", err),
     }

@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 structopt = "0.3"
+scraper = "0.12"
+reqwest = "0.10"
+tokio = { version = "0.2", features = ["full"] }
