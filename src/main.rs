@@ -1,24 +1,41 @@
+mod auto_size;
 mod error;
 mod file_utils;
 mod log_parser;
 mod mps_parser;
-mod auto_size;
 
-use std::io::{Write, stdout};
 use std::fs::File;
+use std::io::{stdout, Write};
 use std::path::{Path, PathBuf};
-use structopt::{StructOpt, clap::ArgGroup};
+use structopt::{clap::ArgGroup, StructOpt};
 use tokio;
 
 #[derive(Debug, StructOpt)]
 #[structopt(group = ArgGroup::with_name("file").required(true))]
 struct ModelSize {
-    #[structopt(help="Specify model size directly", name="Model size", short="s", long="size", group = "file")]
+    #[structopt(
+        help = "Specify model size directly",
+        name = "Model size",
+        short = "s",
+        long = "size",
+        group = "file"
+    )]
     size: Option<usize>,
-    #[structopt(help="Specify MPS file and compute model size automatically", short="i", name="Model File", long="instance", group = "file")]
+    #[structopt(
+        help = "Specify MPS file and compute model size automatically",
+        short = "i",
+        name = "Model File",
+        long = "instance",
+        group = "file"
+    )]
     file: Option<PathBuf>,
-    #[structopt(help="Derive Instance name from log file and search model size on Miplib", short="a", long="auto", group = "file")]
-    auto: bool
+    #[structopt(
+        help = "Derive Instance name from log file and search model size on Miplib",
+        short = "a",
+        long = "auto",
+        group = "file"
+    )]
+    auto: bool,
 }
 
 #[derive(Debug, StructOpt)]
@@ -27,30 +44,28 @@ struct Arguments {
     mps_file: ModelSize,
     #[structopt(help = "CSV log file from Feature Kernel `LOG_FILE`")]
     log_file: PathBuf,
-    #[structopt(help = "Specify output file", short="-o", long="--output")]
-    output: Option<PathBuf>
+    #[structopt(help = "Specify output file", short = "-o", long = "--output")]
+    output: Option<PathBuf>,
 }
-
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "Compute USage Ratios, IFT and CFT")]
 enum Action {
-    #[structopt(about="compute IFT and CFT", name="thresh")]
+    #[structopt(about = "compute IFT and CFT", name = "thresh")]
     FeasThreshold(Arguments),
-    #[structopt(about="compute Usage Ratios", name="ratio")]
-    UsageRatio(Arguments)
+    #[structopt(about = "compute Usage Ratios", name = "ratio")]
+    UsageRatio(Arguments),
 }
 
 fn get_output(args: &Arguments) -> std::io::Result<Box<dyn Write>> {
     let output: Box<dyn Write> = if let Some(ref name) = &args.output {
         Box::new(File::create(name)?)
-    } else {    
+    } else {
         Box::new(stdout())
     };
 
     Ok(output)
 }
-
 
 fn average(counter: log_parser::TotalCount) -> Option<f64> {
     if counter.count == 0 {
@@ -65,10 +80,14 @@ fn get_ratio(counter: log_parser::TotalCount, size: usize) -> Option<f64> {
     Some(avg / (size as f64))
 }
 
-fn print_index(name: &str, value: Option<f64>, output: &mut dyn Write) -> Result<(), error::ParseError> {
+fn print_index(
+    name: &str,
+    value: Option<f64>,
+    output: &mut dyn Write,
+) -> Result<(), error::ParseError> {
     write!(output, "{}: ", name)?;
     if let Some(value) = value {
-        writeln!(output, "{}", value)?;   
+        writeln!(output, "{}", value)?;
     } else {
         writeln!(output, "UNDEFINED")?;
     }
@@ -83,20 +102,26 @@ async fn variable_count(name: &Path, mps_file: &ModelSize) -> Result<usize, erro
     } else if mps_file.auto {
         let size = auto_size::search_model_size(name).await?;
         Ok(size)
-    }else {
+    } else {
         unreachable!()
     }
 }
 
-async fn compute_usage_ratio(args: Arguments) -> Result<Vec<(f64, Option<usize>)>, error::ParseError> {
+async fn compute_usage_ratio(
+    args: Arguments,
+) -> Result<Vec<(f64, Option<usize>)>, error::ParseError> {
     let count = variable_count(&args.log_file, &args.mps_file).await? as f64;
     let vect = log_parser::get_model_sizes(&args.log_file)?;
-    let output = vect.iter().map(|(curr, status)| ((*curr as f64) / count, *status)).collect();
+    let output = vect
+        .iter()
+        .map(|(curr, status)| ((*curr as f64) / count, *status))
+        .collect();
     Ok(output)
 }
 
-
-async fn run_file_parse(args: Arguments) -> Result<(usize, log_parser::TotalSize), error::ParseError> {
+async fn run_file_parse(
+    args: Arguments,
+) -> Result<(usize, log_parser::TotalSize), error::ParseError> {
     let count = variable_count(&args.log_file, &args.mps_file).await?;
     let tot_size = log_parser::get_average_sizes(&args.log_file)?;
     Ok((count, tot_size))
@@ -104,10 +129,10 @@ async fn run_file_parse(args: Arguments) -> Result<(usize, log_parser::TotalSize
 
 fn largest_index(cft: &Option<f64>, ift: &Option<f64>) -> Option<f64> {
     match (cft, ift) {
-        (Some(cft), Some(ift)) => Some(if cft > ift {*cft} else {*ift}),
+        (Some(cft), Some(ift)) => Some(if cft > ift { *cft } else { *ift }),
         (Some(cft), None) => Some(*cft),
         (None, Some(ift)) => Some(*ift),
-        (None, None) => None
+        (None, None) => None,
     }
 }
 
@@ -136,13 +161,11 @@ async fn run_threshold(args: Arguments) -> Result<(), error::ParseError> {
 
     print_index("CFT", continuous_threshold, &mut output)?;
     print_index("IFT", integer_threshold, &mut output)?;
-    
+
     Ok(())
 }
 
-
 async fn run_usage(args: Arguments) -> Result<(), error::ParseError> {
-
     let mut output = get_output(&args)?;
     let usage_ratio = compute_usage_ratio(args).await?;
     for (ratio, status) in usage_ratio {
@@ -151,7 +174,6 @@ async fn run_usage(args: Arguments) -> Result<(), error::ParseError> {
         } else {
             writeln!(&mut output, "{},", ratio)?;
         }
-        
     }
     Ok(())
 }
@@ -160,7 +182,7 @@ async fn run() -> Result<(), error::ParseError> {
     let args = Action::from_args();
     match args {
         Action::FeasThreshold(arg) => run_threshold(arg).await,
-        Action::UsageRatio(arg) => run_usage(arg).await
+        Action::UsageRatio(arg) => run_usage(arg).await,
     }
 }
 

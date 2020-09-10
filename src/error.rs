@@ -5,12 +5,11 @@ use std::num::ParseIntError;
 
 use std::error;
 
-
 #[derive(Debug)]
 pub enum ParseError {
     IOError(Error),
     ParseError(ParseIntError),
-    Generic(Box<dyn error::Error>)
+    Generic(Box<dyn error::Error>),
 }
 
 impl convert::From<Error> for ParseError {
@@ -31,24 +30,21 @@ impl convert::From<Box<dyn error::Error>> for ParseError {
     }
 }
 
-
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::IOError(err) => write!(f, "IO Error: {}", err),
             Self::ParseError(err) => write!(f, "Int Parse Error: {}", err),
-            Self::Generic(err) => write!(f, "Error: {}", err)
+            Self::Generic(err) => write!(f, "Error: {}", err),
         }
     }
 }
-
-
 
 #[derive(Debug)]
 pub struct GetError {
     url: String,
     status: u16,
-    reason: Option<&'static str>
+    reason: Option<&'static str>,
 }
 
 impl GetError {
@@ -56,7 +52,7 @@ impl GetError {
         Self {
             url,
             status: status.as_u16(),
-            reason: status.canonical_reason()
+            reason: status.canonical_reason(),
         }
     }
 }
@@ -73,21 +69,27 @@ impl fmt::Display for GetError {
     }
 }
 
-
 impl error::Error for GetError {}
 
 #[derive(Debug)]
 pub enum AutoGetSizeError {
     WrongFormat(String),
-    SizeNotFound(String)
+    SizeNotFound(String),
 }
-
 
 impl fmt::Display for AutoGetSizeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::WrongFormat(name) => write!(f, "cannot extract instance name from:`{}`\nUse a NAME-init.csv format instead", name),
-            Self::SizeNotFound(name) => write!(f, "cannot find the size for given instance: `{}` on MipLib", name)
+            Self::WrongFormat(name) => write!(
+                f,
+                "cannot extract instance name from:`{}`\nUse a NAME-init.csv format instead",
+                name
+            ),
+            Self::SizeNotFound(name) => write!(
+                f,
+                "cannot find the size for given instance: `{}` on MipLib",
+                name
+            ),
         }
     }
 }

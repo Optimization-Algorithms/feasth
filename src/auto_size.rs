@@ -1,5 +1,5 @@
-use scraper::{Html, Selector};
 use reqwest;
+use scraper::{Html, Selector};
 
 use crate::error;
 
@@ -11,7 +11,7 @@ const DEF_TAIL: &str = "-init.csv";
 pub async fn search_model_size(log_name: &Path) -> Result<usize, Box<dyn std::error::Error>> {
     let log_name = get_path_name(log_name)?;
     if let Some(name) = derive_model_name(log_name) {
-        if let Some (value) = get_model_size(name).await? {
+        if let Some(value) = get_model_size(name).await? {
             Ok(value)
         } else {
             Err(error::AutoGetSizeError::SizeNotFound(name.to_owned()))?
@@ -35,10 +35,13 @@ fn get_path_name(log_name: &Path) -> Result<&str, Box<dyn std::error::Error>> {
         if let Some(name) = log_name.to_str() {
             Ok(name)
         } else {
-            Err(error::PathConversionError{})?
+            Err(error::PathConversionError {})?
         }
     } else {
-        let err = Error::new(ErrorKind::InvalidData, format!("cannot get file name from path {:?}", log_name));
+        let err = Error::new(
+            ErrorKind::InvalidData,
+            format!("cannot get file name from path {:?}", log_name),
+        );
         Err(err)?
     }
 }
@@ -47,9 +50,6 @@ async fn get_model_size(name: &str) -> Result<Option<usize>, Box<dyn std::error:
     let html = get_instance_page(name).await?;
     Ok(get_model_size_from_html(&html))
 }
-
-
-
 
 async fn get_instance_page(name: &str) -> Result<String, Box<dyn std::error::Error>> {
     let url = format!("https://miplib.zib.de/instance_details_{}.html", name);
@@ -61,7 +61,6 @@ async fn get_instance_page(name: &str) -> Result<String, Box<dyn std::error::Err
         Err(error::GetError::new(url, response.status()))?
     }
 }
-
 
 fn get_model_size_from_html(html: &str) -> Option<usize> {
     let html = Html::parse_document(&html);
@@ -83,4 +82,3 @@ fn get_model_size_from_html(html: &str) -> Option<usize> {
     }
     None
 }
-

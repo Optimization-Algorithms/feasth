@@ -78,12 +78,14 @@ fn parse_status_data(data: &str) -> Result<TotalSize, ParseError> {
 fn extract_size_and_status(line: &str) -> Option<Result<(usize, usize), ParseError>> {
     if let Some(result) = parse_csv_line(line) {
         match result {
-            Ok(res) => if let Some(output) = convert_status(res) {
-                Some(Ok(output))
-            } else {
-                None
-            },
-            Err(err) => Some(Err(err))
+            Ok(res) => {
+                if let Some(output) = convert_status(res) {
+                    Some(Ok(output))
+                } else {
+                    None
+                }
+            }
+            Err(err) => Some(Err(err)),
         }
     } else {
         None
